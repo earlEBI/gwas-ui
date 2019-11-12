@@ -1,6 +1,7 @@
 package uk.ac.ebi.spot.goci.ui.controller;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -16,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import uk.ac.ebi.spot.goci.ui.SearchConfiguration;
 import uk.ac.ebi.spot.goci.ui.exception.IllegalParameterCombinationException;
 import uk.ac.ebi.spot.goci.ui.service.JsonProcessingService;
@@ -143,17 +145,18 @@ public class SolrSearchController {
             @RequestParam(value = "max", required = false, defaultValue = "10") int maxResults,
             @RequestParam(value = "page", required = false, defaultValue = "1") int page,
             HttpServletResponse response) throws IOException {
-        StringBuilder solrSearchBuilder = buildFatSearchRequest();
-
-        if (useJsonp) {
-            addJsonpCallback(solrSearchBuilder, callbackFunction);
-        }
-        addRowsAndPage(solrSearchBuilder, maxResults, page);
-        addFilterQuery(solrSearchBuilder, searchConfiguration.getDefaultFacet(), "study");
-        addQuery(solrSearchBuilder, query);
-
-        // dispatch search
-        dispatchSearch(solrSearchBuilder.toString(), response.getOutputStream());
+        throw new HttpClientErrorException(HttpStatus.GONE);
+//        StringBuilder solrSearchBuilder = buildFatSearchRequest();
+//
+//        if (useJsonp) {
+//            addJsonpCallback(solrSearchBuilder, callbackFunction);
+//        }
+//        addRowsAndPage(solrSearchBuilder, maxResults, page);
+//        addFilterQuery(solrSearchBuilder, searchConfiguration.getDefaultFacet(), "study");
+//        addQuery(solrSearchBuilder, query);
+//
+//        // dispatch search
+//        dispatchSearch(solrSearchBuilder.toString(), response.getOutputStream());
     }
 
     @RequestMapping(value = "api/search/singlenucleotidepolymorphism", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -419,7 +422,8 @@ public class SolrSearchController {
             @RequestParam(value = "page", required = false, defaultValue = "1") int page,
             @RequestParam(value = "sort", required = false) String sort,
             HttpServletResponse response) throws IOException {
-        StringBuilder solrSearchBuilder = buildFatSearchRequest();
+        //StringBuilder solrSearchBuilder = buildFatSearchRequest();
+        StringBuilder solrSearchBuilder = buildSlimSearchRequest();
 
         if (useJsonp) {
             addJsonpCallback(solrSearchBuilder, callbackFunction);
@@ -982,191 +986,191 @@ public class SolrSearchController {
                 "to rectify the problem as soon as possible.  If problems persist, please email gwas-info@ebi.ac.uk";
     }
 
-    //    @RequestMapping(value = "api/search/downloads", produces = MediaType.TEXT_PLAIN_VALUE)
-    @RequestMapping(value = "api/search/downloads", method = {RequestMethod.GET})
-//    @CrossOrigin
-    public void getSearchResults(
-            @RequestParam("q") String query,
-            @RequestParam(value = "pvalfilter", required = false) String pval,
-            @RequestParam(value = "orfilter", required = false) String orRange,
-            @RequestParam(value = "betafilter", required = false) String betaRange,
-            @RequestParam(value = "datefilter", required = false) String dateRange,
-            @RequestParam(value = "genomicfilter", required = false) String genomicRange,
-            @RequestParam(value = "traitfilter[]", required = false) String[] traits,
-            @RequestParam(value = "genotypingfilter[]", required = false) String[] genotypingTechnologies,
-            @RequestParam(value = "dateaddedfilter", required = false) String addedDateRange,
-            @RequestParam(value = "efo", defaultValue = "false") boolean efo,
-            @RequestParam(value = "facet", required = true) String facet,
-            @RequestParam(value = "ancestry", defaultValue = "false") boolean ancestry,
-            HttpServletResponse response) throws IOException {
-
-        StringBuilder solrSearchBuilder = buildFatSearchRequest();
-
-        int maxResults = 1000000;
-        int page = 1;
-
-        addFilterQuery(solrSearchBuilder, "resourcename", facet);
-        addRowsAndPage(solrSearchBuilder, maxResults, page);
-
-        if (pval != "") {
-            getLog().debug(pval);
-            addPvalueFilterQuery(solrSearchBuilder, pval);
-        }
-        /**TO DO - when we split OR and beta, modify this controller to reflect that change!!***/
-        if (orRange != "") {
-            getLog().debug(orRange);
-
-            addFilterQuery(solrSearchBuilder, "orPerCopyNum", orRange);
-//            addFilterQuery(solrSearchBuilder, "orType", "true");
-        }
-        if (betaRange != "") {
-            getLog().debug(betaRange);
-
-            addFilterQuery(solrSearchBuilder, "betaNum", betaRange);
-//            addFilterQuery(solrSearchBuilder, "orType", "false");
-        }
-        if (dateRange != "") {
-            getLog().debug(dateRange);
-            addFilterQuery(solrSearchBuilder, "publicationDate", dateRange);
-        }
-        if(genomicRange != "") {
-            getLog().debug(genomicRange);
-            addGenomicRangeFilterQuery(solrSearchBuilder, genomicRange);
-        }
-        if (traits != null && traits.length != 0) {
-            getLog().trace(String.valueOf(traits));
-
-            addFilterQuery(solrSearchBuilder, "traitName_s", traits);
-        }
-        if (addedDateRange != "") {
-            getLog().debug(addedDateRange);
-            addFilterQuery(solrSearchBuilder, "catalogPublishDate", addedDateRange);
-
-        }
-        if (genotypingTechnologies != null && genotypingTechnologies.length != 0) {
-            getLog().trace(String.valueOf(genotypingTechnologies));
-
-            addFilterQuery(solrSearchBuilder, "genotypingTechnologies", genotypingTechnologies);
-        }
-
-        addQuery(solrSearchBuilder, query);
-
-        String searchString = solrSearchBuilder.toString();
-
-        /*this step is necessary as something about calling the URL directly rather than through $.getJSON messes
-        up the URL encoding but explicitly URL encoding causes other interference
-        */
-        searchString = searchString.replace(" ", "+");
-
-        // dispatch search
-        //        return dispatchSearch(searchString);
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-        Date date = new Date();
-        String now = dateFormat.format(date);
-        String fileName;
-        String queryTag;
-
-        if (query.contains("*")) {
-            if (addedDateRange != "") {
-                fileName = "gwas-downloaded_".concat(now).concat("-recentStudies.tsv");
-            }
-            else if (traits != null && traits.length != 0){
-                fileName = "gwas-downloaded_".concat(now).concat("-selectedTraits.tsv");
-            }
-            else{
-                if(efo){
-                    fileName = "gwas_catalog_v1.0.2-".concat(facet).concat("-downloaded_").concat(now).concat(".tsv");
-                }
-                else {
-                    fileName = "gwas_catalog_v1.0-".concat(facet).concat("-downloaded_").concat(now).concat(".tsv");
-                }
-            }
-        }
-        else if (ancestry){
-            fileName = "gwas_catalog-ancestry-downloaded_".concat(now).concat(".tsv");
-
-        }
-        else {
-            if (query.split(",").length > 1) {
-                queryTag = query.split(",")[0] + "-withChildTraits";
-            }
-            else {
-                queryTag = query;
-            }
-
-            fileName = "gwas-".concat(facet).concat("-downloaded_").concat(now)
-                    .concat("-")
-                    .concat(queryTag)
-                    .concat(".tsv");
-        }
-        response.setContentType("text/tsv");
-        response.setHeader("Content-Disposition", "attachement; filename=" + fileName);
-
-        System.out.println("** query: "+solrSearchBuilder);
-
-        dispatchDownloadSearch(searchString, response.getOutputStream(), efo, facet, ancestry);
-
-
-    }
-
-
-    @RequestMapping(value = "api/search/downloads", method = RequestMethod.POST)
-    @ResponseStatus(value=HttpStatus.OK)
-    @ResponseBody
-    public void testDownloadData(@RequestBody String query, HttpServletResponse response) throws IOException {
-
-        String facet = "association";
-        boolean efo = true;
-        boolean ancestry = false;
-
-        StringBuilder solrSearchBuilder = buildFatSearchRequest();
-
-        int maxResults = 1000000;
-        int page = 1;
-
-        addFilterQuery(solrSearchBuilder, "resourcename", facet);
-        addRowsAndPage(solrSearchBuilder, maxResults, page);
-        String[] splitQuery;
-        splitQuery = query.split("q=");
-        String newString= splitQuery[1];
-        newString = URLEncoder.encode(newString,"UTF-8");
-        newString=newString.replace("%252C", ",");
-        query = newString;
+//    //    @RequestMapping(value = "api/search/downloads", produces = MediaType.TEXT_PLAIN_VALUE)
+//    @RequestMapping(value = "api/search/downloads", method = {RequestMethod.GET})
+////    @CrossOrigin
+//    public void getSearchResults(
+//            @RequestParam("q") String query,
+//            @RequestParam(value = "pvalfilter", required = false) String pval,
+//            @RequestParam(value = "orfilter", required = false) String orRange,
+//            @RequestParam(value = "betafilter", required = false) String betaRange,
+//            @RequestParam(value = "datefilter", required = false) String dateRange,
+//            @RequestParam(value = "genomicfilter", required = false) String genomicRange,
+//            @RequestParam(value = "traitfilter[]", required = false) String[] traits,
+//            @RequestParam(value = "genotypingfilter[]", required = false) String[] genotypingTechnologies,
+//            @RequestParam(value = "dateaddedfilter", required = false) String addedDateRange,
+//            @RequestParam(value = "efo", defaultValue = "false") boolean efo,
+//            @RequestParam(value = "facet", required = true) String facet,
+//            @RequestParam(value = "ancestry", defaultValue = "false") boolean ancestry,
+//            HttpServletResponse response) throws IOException {
+//
+//        StringBuilder solrSearchBuilder = buildFatSearchRequest();
+//
+//        int maxResults = 1000000;
+//        int page = 1;
+//
+//        addFilterQuery(solrSearchBuilder, "resourcename", facet);
+//        addRowsAndPage(solrSearchBuilder, maxResults, page);
+//
+//        if (pval != "") {
+//            getLog().debug(pval);
+//            addPvalueFilterQuery(solrSearchBuilder, pval);
+//        }
+//        /**TO DO - when we split OR and beta, modify this controller to reflect that change!!***/
+//        if (orRange != "") {
+//            getLog().debug(orRange);
+//
+//            addFilterQuery(solrSearchBuilder, "orPerCopyNum", orRange);
+////            addFilterQuery(solrSearchBuilder, "orType", "true");
+//        }
+//        if (betaRange != "") {
+//            getLog().debug(betaRange);
+//
+//            addFilterQuery(solrSearchBuilder, "betaNum", betaRange);
+////            addFilterQuery(solrSearchBuilder, "orType", "false");
+//        }
+//        if (dateRange != "") {
+//            getLog().debug(dateRange);
+//            addFilterQuery(solrSearchBuilder, "publicationDate", dateRange);
+//        }
+//        if(genomicRange != "") {
+//            getLog().debug(genomicRange);
+//            addGenomicRangeFilterQuery(solrSearchBuilder, genomicRange);
+//        }
+//        if (traits != null && traits.length != 0) {
+//            getLog().trace(String.valueOf(traits));
+//
+//            addFilterQuery(solrSearchBuilder, "traitName_s", traits);
+//        }
+//        if (addedDateRange != "") {
+//            getLog().debug(addedDateRange);
+//            addFilterQuery(solrSearchBuilder, "catalogPublishDate", addedDateRange);
+//
+//        }
+//        if (genotypingTechnologies != null && genotypingTechnologies.length != 0) {
+//            getLog().trace(String.valueOf(genotypingTechnologies));
+//
+//            addFilterQuery(solrSearchBuilder, "genotypingTechnologies", genotypingTechnologies);
+//        }
+//
+//        addQuery(solrSearchBuilder, query);
+//
+//        String searchString = solrSearchBuilder.toString();
+//
+//        /*this step is necessary as something about calling the URL directly rather than through $.getJSON messes
+//        up the URL encoding but explicitly URL encoding causes other interference
+//        */
+//        searchString = searchString.replace(" ", "+");
+//
+//        // dispatch search
+//        //        return dispatchSearch(searchString);
+//        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+//        Date date = new Date();
+//        String now = dateFormat.format(date);
+//        String fileName;
+//        String queryTag;
+//
+//        if (query.contains("*")) {
+//            if (addedDateRange != "") {
+//                fileName = "gwas-downloaded_".concat(now).concat("-recentStudies.tsv");
+//            }
+//            else if (traits != null && traits.length != 0){
+//                fileName = "gwas-downloaded_".concat(now).concat("-selectedTraits.tsv");
+//            }
+//            else{
+//                if(efo){
+//                    fileName = "gwas_catalog_v1.0.2-".concat(facet).concat("-downloaded_").concat(now).concat(".tsv");
+//                }
+//                else {
+//                    fileName = "gwas_catalog_v1.0-".concat(facet).concat("-downloaded_").concat(now).concat(".tsv");
+//                }
+//            }
+//        }
+//        else if (ancestry){
+//            fileName = "gwas_catalog-ancestry-downloaded_".concat(now).concat(".tsv");
+//
+//        }
+//        else {
+//            if (query.split(",").length > 1) {
+//                queryTag = query.split(",")[0] + "-withChildTraits";
+//            }
+//            else {
+//                queryTag = query;
+//            }
+//
+//            fileName = "gwas-".concat(facet).concat("-downloaded_").concat(now)
+//                    .concat("-")
+//                    .concat(queryTag)
+//                    .concat(".tsv");
+//        }
+//        response.setContentType("text/tsv");
+//        response.setHeader("Content-Disposition", "attachement; filename=" + fileName);
+//
+//        System.out.println("** query: "+solrSearchBuilder);
+//
+//        dispatchDownloadSearch(searchString, response.getOutputStream(), efo, facet, ancestry);
+//
+//
+//    }
 
 
-        addQuery(solrSearchBuilder,query);
-
-        String searchString = solrSearchBuilder.toString();
-        /*this step is necessary as something about calling the URL directly rather than through $.getJSON messes
-        up the URL encoding but explicitly URL encoding causes other interference
-        */
-        searchString = searchString.replace(" ", "+");
-
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-        Date date = new Date();
-        String now = dateFormat.format(date);
-        String fileName;
-        String queryTag;
-
-        if (query.split(",").length > 1) {
-            queryTag = query.split(",")[0] + "-withChildTraits";
-        }
-        else {
-            queryTag = query;
-        }
-
-        fileName = "gwas-".concat(facet).concat("-downloaded_").concat(now)
-                .concat("-")
-                .concat(queryTag)
-                .concat(".tsv");
-
-        response.setContentType("text/tsv");
-        response.setHeader("Content-Disposition", "attachement; filename=" + fileName);
-
-        System.out.println("** query-Trait Download: "+solrSearchBuilder);
-
-        dispatchDownloadSearch(searchString, response.getOutputStream(), efo, facet, ancestry);
-    }
+//    @RequestMapping(value = "api/search/downloads", method = RequestMethod.POST)
+//    @ResponseStatus(value=HttpStatus.OK)
+//    @ResponseBody
+//    public void testDownloadData(@RequestBody String query, HttpServletResponse response) throws IOException {
+//
+//        String facet = "association";
+//        boolean efo = true;
+//        boolean ancestry = false;
+//
+//        StringBuilder solrSearchBuilder = buildFatSearchRequest();
+//
+//        int maxResults = 1000000;
+//        int page = 1;
+//
+//        addFilterQuery(solrSearchBuilder, "resourcename", facet);
+//        addRowsAndPage(solrSearchBuilder, maxResults, page);
+//        String[] splitQuery;
+//        splitQuery = query.split("q=");
+//        String newString= splitQuery[1];
+//        newString = URLEncoder.encode(newString,"UTF-8");
+//        newString=newString.replace("%252C", ",");
+//        query = newString;
+//
+//
+//        addQuery(solrSearchBuilder,query);
+//
+//        String searchString = solrSearchBuilder.toString();
+//        /*this step is necessary as something about calling the URL directly rather than through $.getJSON messes
+//        up the URL encoding but explicitly URL encoding causes other interference
+//        */
+//        searchString = searchString.replace(" ", "+");
+//
+//        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+//        Date date = new Date();
+//        String now = dateFormat.format(date);
+//        String fileName;
+//        String queryTag;
+//
+//        if (query.split(",").length > 1) {
+//            queryTag = query.split(",")[0] + "-withChildTraits";
+//        }
+//        else {
+//            queryTag = query;
+//        }
+//
+//        fileName = "gwas-".concat(facet).concat("-downloaded_").concat(now)
+//                .concat("-")
+//                .concat(queryTag)
+//                .concat(".tsv");
+//
+//        response.setContentType("text/tsv");
+//        response.setHeader("Content-Disposition", "attachement; filename=" + fileName);
+//
+//        System.out.println("** query-Trait Download: "+solrSearchBuilder);
+//
+//        dispatchDownloadSearch(searchString, response.getOutputStream(), efo, facet, ancestry);
+//    }
 
 
 
