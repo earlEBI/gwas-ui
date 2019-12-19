@@ -20,14 +20,13 @@ function displayLDPlot() {
                         region_width_options: ["500", "200","50","25"],
                         population      : '1000GENOMES:phase_3:GBR',
                         population_desc : 'British in England and Scotland (GBR)',
-                        //LDsvgSize       : {
-                        svgSize       : {
+                        LDsvgSize       : {
+                        //svgSize       : {
                             width        : 750,
                             height       : 450,
                             padding      : 50,
                             padding_left : 130
                         },
-                        window_size: 500,
                         trackSvgSize: {
                             height  : 60,
                         },
@@ -37,7 +36,7 @@ function displayLDPlot() {
                             anotherTrack     : false       //see example for SNP rs699
                         },
                         panelSize     : {
-                            width       : 750,
+                            width       : 300,
                             tab_height  : 30,
                             padding     : 50
                         },
