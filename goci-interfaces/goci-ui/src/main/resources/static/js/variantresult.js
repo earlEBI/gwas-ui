@@ -68,6 +68,7 @@ $(document).ready(function() {
         getVariantData(searchTerm);
     }
     getVariantInfoFromEnsembl(searchTerm);
+    displayLDPlot();
 });
 
 function getVariantData(rsId) {
